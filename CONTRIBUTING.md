@@ -41,3 +41,7 @@ Rules:
 ## Scope
 klab is a research **lab**, not a production cluster manager. See the non-goals in
 `docs/architecture.md` before proposing large features.
+
+## License
+By contributing, you agree that your contributions are licensed under the project's
+[Apache License 2.0](LICENSE).

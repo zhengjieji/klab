@@ -6,7 +6,7 @@
 > 在你的 Mac 上运行,并能原样移植到云端。
 
 [![ci](https://github.com/zhengjieji/klab/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjieji/klab/actions/workflows/ci.yml)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![license: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 **状态:早期 / 开发中(pre-v0.1)。** 设计与路线图已确定(见 `docs/`),实现按阶段推进。
 
@@ -98,4 +98,5 @@ klab down examples/topologies/single.yaml
 KVM/启动测试需要 Apple Silicon(M3+)主机。
 
 ## 许可证
-[MIT](LICENSE)。(也在考虑 Apache-2.0,因为它带明确的专利授权。)
+[Apache License 2.0](LICENSE) —— 选它是因为带明确的专利授权,也是系统/eBPF 类项目的
+惯例。见 [NOTICE](NOTICE)。

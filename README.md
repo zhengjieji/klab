@@ -6,7 +6,7 @@
 > multi-node cluster — that runs on your Mac and ports unchanged to the cloud.
 
 [![ci](https://github.com/zhengjieji/klab/actions/workflows/ci.yml/badge.svg)](https://github.com/zhengjieji/klab/actions/workflows/ci.yml)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![license: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 **Status: early / work-in-progress (pre-v0.1).** The design and roadmap are settled
 (see `docs/`), implementation is landing stage by stage.
@@ -106,4 +106,5 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Unit/lint tests run anywhere; live KVM
 tests need an Apple-silicon (M3+) host.
 
 ## License
-[MIT](LICENSE). (Apache-2.0 is under consideration for its explicit patent grant.)
+[Apache License 2.0](LICENSE) — chosen for its explicit patent grant, the norm for
+systems/eBPF projects. See [NOTICE](NOTICE).
