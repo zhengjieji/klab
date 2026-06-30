@@ -6,7 +6,6 @@
 # Safe to run anywhere; `scripts/setup.sh` calls it before and after configuring.
 set -euo pipefail
 
-DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 INSTANCE="${KLAB_LIMA_INSTANCE:-klab}"
 
 if [[ -t 1 ]]; then
