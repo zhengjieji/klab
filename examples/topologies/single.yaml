@@ -1,0 +1,9 @@
+name: single
+nodes:
+  dev:
+    driver: qemu
+    kernel: v6.17-bpf-arm64
+    arch: arm64
+    cpu: 2
+    mem: 1G
+    profile: bpf-min

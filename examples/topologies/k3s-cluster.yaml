@@ -1,0 +1,25 @@
+# A 3-node k3s cluster on a custom arm64 kernel.
+# On an 8 GB Mac this is a tight, FUNCTIONAL-ONLY squeeze: use the microVM
+# driver, keep macOS lean, and don't build a kernel while it runs. For real
+# scale, run this same file on a cloud host (see docs/architecture.md).
+name: k3s-cluster
+nodes:
+  server:
+    driver: firecracker
+    kernel: v6.17-k8s-arm64
+    arch: arm64
+    cpu: 2
+    mem: 1G
+    profile: k8s-node
+  agent:
+    driver: firecracker
+    kernel: v6.17-k8s-arm64
+    arch: arm64
+    cpu: 1
+    mem: 512M
+    profile: k8s-node
+    count: 2
+links:
+  - name: clusternet
+    members: [server, agent]
+    subnet: 10.42.0.0/24

@@ -1,0 +1,28 @@
+# build output
+/bin/
+*.test
+*.out
+coverage.*
+
+# kernel source tree(s) and build artifacts (never committed)
+/linux/
+**/vmlinux
+**/*.ko
+arch/*/boot/*Image*
+
+# rootfs images and VM disks
+*.img
+*.qcow2
+*.ext4
+/rootfs/
+
+# local runtime state, caches, results
+/.klab/
+/results/
+*.log
+*.pid
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/

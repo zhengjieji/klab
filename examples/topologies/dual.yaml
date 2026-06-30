@@ -1,0 +1,20 @@
+name: dual
+nodes:
+  vm1:
+    driver: qemu
+    kernel: v6.17-bpf-arm64
+    arch: arm64
+    cpu: 2
+    mem: 1G
+    profile: bpf-min
+  vm2:
+    driver: qemu
+    kernel: v6.17-bpf-arm64
+    arch: arm64
+    cpu: 2
+    mem: 1G
+    profile: bpf-min
+links:
+  - name: data0
+    members: [vm1, vm2]
+    subnet: 192.168.100.0/24

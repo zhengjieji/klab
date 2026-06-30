@@ -1,0 +1,40 @@
+# klab dev host: a hardware-accelerated Linux box with nested virtualization, so
+# inner QEMU/Firecracker VMs get /dev/kvm. Requires Apple M3+ and macOS 15+.
+#
+# Start with:  limactl start scripts/lima/klab.yaml
+#
+# Memory/disk are tuned for an 8 GB Mac — bump them on larger machines.
+
+vmType: "vz"
+nestedVirtualization: true
+rosetta:
+  enabled: false
+
+cpus: 4
+memory: "5GiB"
+disk: "60GiB"
+
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+
+mounts:
+  - location: "~/klab"
+    writable: true
+
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update
+      apt-get install -y \
+        qemu-system-arm qemu-utils \
+        iproute2 bridge-utils \
+        build-essential flex bison bc \
+        libelf-dev libssl-dev \
+        clang lld llvm dwarves \
+        cpu-checker
+      # Verify nested KVM is actually available inside this VM.
+      kvm-ok || echo "WARNING: /dev/kvm not usable — need Apple M3+ and macOS 15+"
