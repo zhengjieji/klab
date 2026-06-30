@@ -1,7 +1,15 @@
-.PHONY: build test lint fmt vet test-live clean
+.PHONY: build test lint fmt vet test-live setup doctor clean
 
 build:
 	go build -o bin/klab ./cmd/klab
+
+# Detect + auto-configure the host (installs deps, starts the accelerated VM).
+setup:
+	./scripts/setup.sh
+
+# Read-only host readiness report.
+doctor:
+	./scripts/doctor.sh
 
 test:
 	go test ./...

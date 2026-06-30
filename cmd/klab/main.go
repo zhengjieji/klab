@@ -9,6 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/zhengjieji/klab/internal/topology"
 )
@@ -29,8 +31,9 @@ func main() {
 	case "validate":
 		validateCmd(os.Args[2:])
 	case "doctor":
-		// Stage 0: probe chip / macOS / lima / /dev/kvm / RAM / disk.
-		notImplemented(cmd, "stage 0")
+		runScript("doctor.sh", os.Args[2:])
+	case "setup":
+		runScript("setup.sh", os.Args[2:])
 	case "build", "kernel":
 		notImplemented(cmd, "stage 1")
 	case "up", "down", "status", "ssh":
@@ -63,12 +66,46 @@ func notImplemented(cmd, stage string) {
 	os.Exit(1)
 }
 
+// runScript locates and runs scripts/<name>, forwarding args and streams. The
+// environment-detection and auto-configuration logic lives in shell because it
+// must run before Go/lima are even installed; the CLI is a thin front door.
+func runScript(name string, args []string) {
+	candidates := []string{filepath.Join("scripts", name)}
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(filepath.Dir(exe), "scripts", name),
+			filepath.Join(filepath.Dir(exe), "..", "scripts", name),
+		)
+	}
+	script := ""
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			script = c
+			break
+		}
+	}
+	if script == "" {
+		fmt.Fprintf(os.Stderr, "klab: cannot find scripts/%s; run from the repo root or use `make`\n", name)
+		os.Exit(1)
+	}
+	c := exec.Command("bash", append([]string{script}, args...)...)
+	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+	if err := c.Run(); err != nil {
+		if e, ok := err.(*exec.ExitError); ok {
+			os.Exit(e.ExitCode())
+		}
+		fmt.Fprintln(os.Stderr, "klab:", err)
+		os.Exit(1)
+	}
+}
+
 func usage(w *os.File) {
 	fmt.Fprint(w, `klab — a lab for custom-kernel Linux topologies
 
 usage:
   klab version                 print version
-  klab doctor                  check host readiness (chip, macOS, /dev/kvm, RAM)   [stage 0]
+  klab setup [--yes]           detect + auto-configure the host (installs deps, starts host)
+  klab doctor                  check host readiness (chip, macOS, /dev/kvm, RAM)
   klab validate <file>         validate a topology file
   klab kernel build <name>     build a kernel from the matrix                      [stage 1]
   klab up <topology>           bring up a topology                                 [stage 2]
