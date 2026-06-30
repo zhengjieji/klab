@@ -1,5 +1,7 @@
 # Architecture
 
+**English** · [简体中文](architecture.zh-CN.md)
+
 klab runs custom-kernel Linux topologies on a Mac, and ports them unchanged to the
 cloud. The trick is simple: **the Mac hosts one hardware-accelerated Linux box, and
 everything else is ordinary Linux.**

@@ -1,5 +1,7 @@
 # klab
 
+**English** · [简体中文](README.zh-CN.md)
+
 > A declarative lab for **custom-kernel Linux topologies** — from a single VM to a
 > multi-node cluster — that runs on your Mac and ports unchanged to the cloud.
 
@@ -57,10 +59,14 @@ links. Same engine, different input.
 
 ## Quickstart (target UX — see roadmap for what's live)
 
+klab does not assume your machine is set up — `setup.sh` detects the host and
+auto-configures it (installs missing deps, starts and verifies the accelerated host).
+
 ```sh
-# host: Apple M3+ / macOS 15+ with lima
-limactl start scripts/lima/klab.yaml
-klab doctor                              # verify chip, macOS, /dev/kvm, RAM/disk
+# host: Apple M3+ / macOS 15+
+git clone https://github.com/zhengjieji/klab && cd klab
+./scripts/setup.sh                       # detect + auto-configure (use --yes for CI)
+klab doctor                              # re-check host readiness anytime
 
 klab kernel build v6.17-bpf-arm64        # build a custom kernel
 klab up examples/topologies/single.yaml  # boot it as a node

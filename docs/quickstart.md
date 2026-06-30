@@ -1,9 +1,14 @@
 # Quickstart
 
+**English** · [简体中文](quickstart.zh-CN.md)
+
 > Status: the host setup (Stage 0) and kernel build + single-node boot (Stage 1) are
 > the first milestones. Commands below marked _(roadmap)_ are not implemented yet.
 
 ## Prerequisites
+
+klab does not assume your environment is set up — `./scripts/setup.sh` detects and
+auto-configures it. For a manual install you'd need:
 
 - Apple **M3 or later** on **macOS 15+** (nested virtualization requires this).
 - [lima](https://lima-vm.io): `brew install lima`
@@ -12,19 +17,22 @@
 > M1/M2 or Intel Macs can still build kernels and run nodes, but without nested KVM the
 > microVM driver and in-VM acceleration are limited — see architecture.md.
 
-## 1. Start the accelerated Linux host
+## 0. One-shot detect + auto-configure
 
 ```sh
-limactl start scripts/lima/klab.yaml
+./scripts/setup.sh          # detect chip/macOS/deps, install what's missing, start + verify the host
+./scripts/setup.sh --yes    # non-interactive (auto-confirm installs)
+./scripts/doctor.sh         # read-only readiness report, changes nothing
 ```
 
-This provisions a Lima VM with `vmType: vz` and `nestedVirtualization: true`, installs
-the kernel build + QEMU toolchain, and verifies `/dev/kvm`.
+`setup.sh` ensures Homebrew/lima/go, starts the Lima host from
+`scripts/lima/klab.yaml` (`vmType: vz` + `nestedVirtualization: true`), and verifies
+`/dev/kvm` inside. It is idempotent — safe to re-run.
 
-## 2. Check readiness _(roadmap, Stage 0)_
+## 1. Re-check readiness anytime
 
 ```sh
-klab doctor
+klab doctor                 # wraps scripts/doctor.sh
 ```
 
 Reports your chip, macOS version, lima status, `/dev/kvm`, and free RAM/disk, and tells
