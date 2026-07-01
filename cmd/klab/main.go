@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/zhengjieji/klab/internal/host"
 	"github.com/zhengjieji/klab/internal/topology"
 )
 
@@ -31,7 +32,7 @@ func main() {
 	case "validate":
 		validateCmd(os.Args[2:])
 	case "doctor":
-		runScript("doctor.sh", os.Args[2:])
+		os.Exit(host.Run(os.Stdout))
 	case "setup":
 		runScript("setup.sh", os.Args[2:])
 	case "build", "kernel":
@@ -67,8 +68,10 @@ func notImplemented(cmd, stage string) {
 }
 
 // runScript locates and runs scripts/<name>, forwarding args and streams. The
-// environment-detection and auto-configuration logic lives in shell because it
-// must run before Go/lima are even installed; the CLI is a thin front door.
+// auto-configuration logic (setup) lives in shell because it must run before
+// Go/lima are even installed; the CLI is a thin front door. Read-only host
+// detection (doctor) is Go instead — see internal/host — so its verdict logic
+// is unit-testable against injected environments.
 func runScript(name string, args []string) {
 	candidates := []string{filepath.Join("scripts", name)}
 	if exe, err := os.Executable(); err == nil {

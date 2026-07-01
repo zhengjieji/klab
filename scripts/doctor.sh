@@ -4,6 +4,10 @@
 # Reports chip / OS / tooling / accelerated host / RAM / disk and prints an
 # overall verdict. Exit 0 if ready (warnings allowed), non-zero if not ready.
 # Safe to run anywhere; `scripts/setup.sh` calls it before and after configuring.
+#
+# This shell script is the pre-binary bootstrap probe (setup.sh runs it before
+# the klab binary exists). Once built, `klab doctor` uses the Go verdict layer
+# in internal/host, which is unit-tested; keep the rules here in sync with it.
 set -euo pipefail
 
 INSTANCE="${KLAB_LIMA_INSTANCE:-klab}"
