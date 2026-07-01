@@ -72,19 +72,29 @@ func (b MakeBuilder) Build(ctx context.Context, spec Spec, resolvedConfig, outDi
 
 	// The fragment is applied over the base config target (e.g. defconfig); the
 	// final .config is copied back out so it is the artifact's resolved config.
+	// Each (version, arch) builds in its own tree (linux-<ver>-<arch>) so arm64
+	// and x86_64 never share object files. The tarball is downloaded once and
+	// shared; a fresh per-arch tree is extracted from it on demand.
 	script := fmt.Sprintf(`set -euo pipefail
 SRC=%[1]s
+VER=%[2]s
+KARCH=%[4]s
+TREE="$SRC/linux-$VER-$KARCH"
 mkdir -p "$SRC" && cd "$SRC"
-[ -f linux-%[2]s.tar.xz ] || curl -fsSL -O %[3]s
-[ -d linux-%[2]s ] || tar xf linux-%[2]s.tar.xz
-cd linux-%[2]s
-make LLVM=1 ARCH=%[4]s %[5]s
+[ -f "linux-$VER.tar.xz" ] || curl -fsSL -O %[3]s
+if [ ! -d "$TREE" ]; then
+  rm -rf "$SRC/linux-$VER"
+  tar xf "linux-$VER.tar.xz" -C "$SRC"
+  mv "$SRC/linux-$VER" "$TREE"
+fi
+cd "$TREE"
+make LLVM=1 ARCH="$KARCH" %[5]s
 cat > klab.fragment <<'KLAB_FRAGMENT_EOF'
 %[6]s
 KLAB_FRAGMENT_EOF
 ./scripts/kconfig/merge_config.sh -m .config klab.fragment
-make LLVM=1 ARCH=%[4]s olddefconfig
-make LLVM=1 ARCH=%[4]s -j%[7]d %[8]s
+make LLVM=1 ARCH="$KARCH" olddefconfig
+make LLVM=1 ARCH="$KARCH" -j%[7]d %[8]s
 cp %[9]s %[10]s/%[8]s
 cp vmlinux %[10]s/vmlinux
 cp .config %[10]s/config
