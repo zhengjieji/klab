@@ -1,0 +1,16 @@
+---
+# yamllint configuration for klab.
+#
+# Two deviations from the default ruleset, both deliberate:
+#   - line-length: pinned image URLs (e.g. the Ubuntu cloud image in
+#     scripts/lima/klab.yaml) are long and unbreakable; allow long inline
+#     mapping values and raise the wrap limit to 120.
+#   - document-start: our single-document YAML files do not use a leading
+#     "---" marker, so do not require one.
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    allow-non-breakable-inline-mappings: true
+  document-start: disable

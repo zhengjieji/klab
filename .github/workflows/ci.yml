@@ -24,6 +24,10 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
           find scripts test -name '*.sh' -print0 | xargs -0 -r shellcheck
+      - name: yamllint
+        run: |
+          sudo apt-get install -y yamllint
+          yamllint examples scripts/lima
 
   integration:
     name: live boot/KVM (self-hosted M3)
