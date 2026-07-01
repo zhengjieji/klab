@@ -1,6 +1,10 @@
 package kernel
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestMergeConfig(t *testing.T) {
 	tests := []struct {
@@ -124,4 +128,26 @@ func TestCacheKey(t *testing.T) {
 			t.Error("field-boundary collision: distinct (ref,arch) produced the same key")
 		}
 	})
+}
+
+// TestGoldenBpfArm64Hash pins the content-addressed cache key of the shipped
+// bpf-arm64 spec (linux v6.12, arm64, clang-18, configs/kernel/bpf-min.config),
+// verified live on an M4. Any change to the fragment, ref, arch, or pinned
+// toolchain flips this hash; updating the golden must be deliberate (R1.1).
+func TestGoldenBpfArm64Hash(t *testing.T) {
+	const (
+		ref       = "v6.12"
+		arch      = "arm64"
+		toolchain = "clang-18"
+		golden    = "9b56838bcda9e01dd27befc4f5913a6dde2f8d41e74c9e49fc6fb71943279c54"
+	)
+	frag, err := os.ReadFile(filepath.Join("..", "..", "configs", "kernel", "bpf-min.config"))
+	if err != nil {
+		t.Fatalf("reading bpf-min fragment: %v", err)
+	}
+	got := CacheKey(ref, arch, toolchain, MergeConfig("", string(frag)))
+	if got != golden {
+		t.Errorf("bpf-arm64 cache key drifted:\n got:  %s\n want: %s\n"+
+			"(if the config fragment changed intentionally, update the golden)", got, golden)
+	}
 }
