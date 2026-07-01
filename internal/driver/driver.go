@@ -38,6 +38,7 @@ type Handle string
 type BootSpec struct {
 	Name   string
 	Kernel string // path to a built kernel image (Stage 1 artifact)
+	Rootfs string // path to the node's rootfs, exported to the guest over 9p
 	Arch   string
 	CPU    int
 	MemMiB int
