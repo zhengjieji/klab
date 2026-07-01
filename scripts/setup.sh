@@ -74,19 +74,22 @@ start_host() {
 	[[ -f "$LIMA_CONFIG" ]] || die "lima config not found: $LIMA_CONFIG"
 	local status
 	status="$(limactl list "$INSTANCE" --format '{{.Status}}' 2>/dev/null || true)"
+	# First boot provisions the kernel toolchain over apt; give limactl generous
+	# headroom so a slow first run does not trip its default readiness timeout.
+	local start_flags=(--timeout "${KLAB_START_TIMEOUT:-20m}")
 	if [[ "$status" == "Running" ]]; then
 		log "lima instance '$INSTANCE' already running"
 		return 0
 	fi
 	if [[ -n "$status" ]]; then
 		log "starting existing lima instance '$INSTANCE' (was: $status)"
-		limactl start "$INSTANCE"
+		limactl start "${start_flags[@]}" "$INSTANCE"
 		return 0
 	fi
 	log "creating lima instance '$INSTANCE' from $LIMA_CONFIG (this provisions the toolchain; takes a few minutes)"
 	local tty_flag=()
 	[[ "$ASSUME_YES" -eq 1 ]] && tty_flag=(--tty=false)
-	limactl start --name="$INSTANCE" "${tty_flag[@]}" "$LIMA_CONFIG"
+	limactl start --name="$INSTANCE" "${tty_flag[@]}" "${start_flags[@]}" "$LIMA_CONFIG"
 }
 
 main() {

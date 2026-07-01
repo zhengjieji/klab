@@ -10,6 +10,13 @@ nestedVirtualization: true
 rosetta:
   enabled: false
 
+# klab boots kernels, not containers, so skip lima's built-in containerd/nerdctl
+# provisioning: it is pure overhead here and its first-boot setup is slow enough
+# to trip limactl's readiness timeout.
+containerd:
+  system: false
+  user: false
+
 cpus: 4
 memory: "5GiB"
 disk: "60GiB"
