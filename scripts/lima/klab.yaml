@@ -30,6 +30,20 @@ mounts:
     writable: true
 
 provision:
+  # BTF generation (pahole over the full vmlinux) briefly needs several GB of
+  # RAM; on the 8 GB-class budget the build VM adds swap so a kernel build does
+  # not OOM during the BTF step.
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      if ! swapon --show | grep -q /swapfile; then
+        fallocate -l 8G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=8192
+        chmod 600 /swapfile
+        mkswap /swapfile
+        swapon /swapfile
+        grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+      fi
   - mode: system
     script: |
       #!/bin/bash
