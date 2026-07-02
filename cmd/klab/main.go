@@ -7,16 +7,22 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/zhengjieji/klab/internal/driver"
+	"github.com/zhengjieji/klab/internal/driver/qemu"
+	kexec "github.com/zhengjieji/klab/internal/exec"
 	"github.com/zhengjieji/klab/internal/host"
 	"github.com/zhengjieji/klab/internal/kernel"
+	"github.com/zhengjieji/klab/internal/runner"
 	"github.com/zhengjieji/klab/internal/topology"
 )
 
@@ -41,7 +47,13 @@ func main() {
 		runScript("setup.sh", os.Args[2:])
 	case "kernel":
 		kernelCmd(os.Args[2:])
-	case "up", "down", "status", "ssh":
+	case "up":
+		upCmd(os.Args[2:])
+	case "down":
+		downCmd(os.Args[2:])
+	case "exec":
+		execCmd(os.Args[2:])
+	case "status", "ssh":
 		notImplemented(cmd, "stage 2")
 	case "run":
 		notImplemented(cmd, "stage 3")
@@ -112,16 +124,11 @@ func kernelBuild(args []string) {
 		os.Exit(1)
 	}
 
-	var frags []string
-	for _, f := range spec.Fragments {
-		b, err := os.ReadFile(f)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "klab: reading config fragment %s: %v\n", f, err)
-			os.Exit(1)
-		}
-		frags = append(frags, string(b))
+	merged, err := resolveConfig(spec)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "klab:", err)
+		os.Exit(1)
 	}
-	merged := kernel.MergeConfig("", frags...)
 
 	store := &kernel.Store{
 		Root:      cacheRoot(),
@@ -161,6 +168,187 @@ func toolchainID() string {
 		}
 	}
 	return "clang"
+}
+
+// resolveConfig reads a spec's fragment files and merges them into the resolved
+// config used both to build a kernel and to look one up in the cache.
+func resolveConfig(spec kernel.Spec) (string, error) {
+	var frags []string
+	for _, f := range spec.Fragments {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			return "", fmt.Errorf("reading config fragment %s: %w", f, err)
+		}
+		frags = append(frags, string(b))
+	}
+	return kernel.MergeConfig("", frags...), nil
+}
+
+// resolveKernelImage returns the path of an already-built kernel image for a
+// matrix name, or an error telling the user to build it first (it never builds).
+func resolveKernelImage(name string) (string, error) {
+	spec, ok := builtinSpecs[name]
+	if !ok {
+		return "", fmt.Errorf("unknown kernel %q (have: %s)", name, strings.Join(specNames(), ", "))
+	}
+	merged, err := resolveConfig(spec)
+	if err != nil {
+		return "", err
+	}
+	key := kernel.CacheKey(spec.Ref, spec.Arch, toolchainID(), merged)
+	data, err := os.ReadFile(filepath.Join(cacheRoot(), key, "artifact.json"))
+	if err != nil {
+		return "", fmt.Errorf("kernel %q is not built; run 'klab kernel build %s' first", name, name)
+	}
+	var a kernel.Artifact
+	if err := json.Unmarshal(data, &a); err != nil {
+		return "", fmt.Errorf("corrupt cache metadata for %q: %w", name, err)
+	}
+	return a.Image, nil
+}
+
+// onlyNode returns the single node of a Stage-1 topology (N-node is Stage 2).
+func onlyNode(t *topology.Topology) (string, topology.Node, error) {
+	if len(t.Nodes) != 1 {
+		return "", topology.Node{}, fmt.Errorf("stage 1 supports single-node topologies; %q has %d nodes", t.Name, len(t.Nodes))
+	}
+	for name, n := range t.Nodes {
+		return name, n, nil
+	}
+	return "", topology.Node{}, fmt.Errorf("topology has no nodes")
+}
+
+// vmHome reports the run user's home inside the lima VM (paths are built from it).
+func vmHome(ctx context.Context, r kexec.Runner) (string, error) {
+	res, err := r.Run(ctx, "sh", "-c", "echo $HOME")
+	if err != nil {
+		return "", err
+	}
+	h := strings.TrimSpace(res.Stdout)
+	if h == "" {
+		return "", fmt.Errorf("could not determine the VM home directory")
+	}
+	return h, nil
+}
+
+func die(err error) {
+	fmt.Fprintln(os.Stderr, "klab:", err)
+	os.Exit(1)
+}
+
+func upCmd(args []string) {
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: klab up <topology>")
+		os.Exit(2)
+	}
+	topo, err := topology.Load(args[0])
+	if err != nil {
+		die(err)
+	}
+	name, node, err := onlyNode(topo)
+	if err != nil {
+		die(err)
+	}
+	image, err := resolveKernelImage(node.Kernel)
+	if err != nil {
+		die(err)
+	}
+
+	ctx := context.Background()
+	r := kexec.LimaRunner{}
+	home, err := vmHome(ctx, r)
+	if err != nil {
+		die(err)
+	}
+	run := path.Join(home, ".cache/klab/run", name)
+	base := path.Join(home, ".cache/klab/rootfs/base/bpf-min")
+
+	if res, _ := r.Run(ctx, "sudo", "test", "-e", base+"/sbin/klab-init"); res.ExitCode != 0 {
+		die(fmt.Errorf("base rootfs missing at %s; run scripts/guest/mkrootfs.sh in the VM", base))
+	}
+	prep := fmt.Sprintf("rm -rf %q && mkdir -p %q && cp -a %q %q", run, run+"/rw/ctl", base, run+"/rootfs")
+	if _, err := r.Run(ctx, "sudo", "bash", "-c", prep); err != nil {
+		die(fmt.Errorf("preparing node rootfs: %w", err))
+	}
+
+	spec, err := runner.ResolveBootSpec(name, node, image, run+"/rootfs", run+"/rw")
+	if err != nil {
+		die(err)
+	}
+	d := qemu.Driver{Runner: r}
+	if err := runner.CheckCaps(node.Driver, node, d.Capabilities()); err != nil {
+		die(err)
+	}
+	fmt.Fprintf(os.Stderr, "klab: booting %s (%s)...\n", name, node.Arch)
+	h, err := d.Boot(ctx, spec)
+	if err != nil {
+		die(err)
+	}
+	fmt.Printf("%s: up (%s)\n  handle: %s\n  exec:   klab exec %s %s -- <cmd>\n", name, node.Arch, h, args[0], name)
+}
+
+func downCmd(args []string) {
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: klab down <topology>")
+		os.Exit(2)
+	}
+	topo, err := topology.Load(args[0])
+	if err != nil {
+		die(err)
+	}
+	name, _, err := onlyNode(topo)
+	if err != nil {
+		die(err)
+	}
+	ctx := context.Background()
+	r := kexec.LimaRunner{}
+	home, err := vmHome(ctx, r)
+	if err != nil {
+		die(err)
+	}
+	run := path.Join(home, ".cache/klab/run", name)
+	d := qemu.Driver{Runner: r}
+	if err := d.Stop(ctx, driver.Handle(run)); err != nil {
+		die(err)
+	}
+	fmt.Printf("%s: down\n", name)
+}
+
+// execCmd runs a command inside a running node: klab exec <topology> <node> -- <cmd...>
+func execCmd(args []string) {
+	sep := -1
+	for i, a := range args {
+		if a == "--" {
+			sep = i
+			break
+		}
+	}
+	if sep < 2 || sep+1 >= len(args) {
+		fmt.Fprintln(os.Stderr, "usage: klab exec <topology> <node> -- <cmd> [args...]")
+		os.Exit(2)
+	}
+	topoPath, nodeName, cmd := args[0], args[1], args[sep+1:]
+	topo, err := topology.Load(topoPath)
+	if err != nil {
+		die(err)
+	}
+	if _, ok := topo.Nodes[nodeName]; !ok {
+		die(fmt.Errorf("no node %q in topology %q", nodeName, topo.Name))
+	}
+	ctx := context.Background()
+	r := kexec.LimaRunner{}
+	home, err := vmHome(ctx, r)
+	if err != nil {
+		die(err)
+	}
+	run := path.Join(home, ".cache/klab/run", nodeName)
+	d := qemu.Driver{Runner: r}
+	res, err := d.Exec(ctx, driver.Handle(run), cmd)
+	if err != nil {
+		die(err)
+	}
+	fmt.Print(res.Stdout)
+	os.Exit(res.ExitCode)
 }
 
 func notImplemented(cmd, stage string) {
@@ -213,10 +401,11 @@ usage:
   klab validate <file>         validate a topology file
   klab kernel list             list the kernels in the matrix
   klab kernel build <name>     build a kernel from the matrix (arm64/x86_64)
-  klab up <topology>           bring up a topology                                 [stage 2]
+  klab up <topology>           boot a single-node topology
+  klab exec <topo> <node> -- <cmd>   run a command inside a node
+  klab down <topology>         tear a topology down
   klab status <topology>       show node status                                    [stage 2]
   klab ssh <topology> <node>   shell into a node                                   [stage 2]
-  klab down <topology>         tear down a topology                                [stage 2]
   klab run <experiment>        run an experiment (setup/run/collect)               [stage 3]
 `)
 }

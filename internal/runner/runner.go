@@ -34,10 +34,10 @@ func parseMem(s string) (int, error) {
 	return n * mult, nil
 }
 
-// resolveBootSpec builds a driver.BootSpec for a node from its topology entry
+// ResolveBootSpec builds a driver.BootSpec for a node from its topology entry
 // plus the already-resolved kernel image and per-node rootfs/control paths. It
 // is pure: path construction and cache lookup happen in the caller.
-func resolveBootSpec(name string, n topology.Node, kernelImage, rootfs, rootfsRW string) (driver.BootSpec, error) {
+func ResolveBootSpec(name string, n topology.Node, kernelImage, rootfs, rootfsRW string) (driver.BootSpec, error) {
 	mem, err := parseMem(n.Mem)
 	if err != nil {
 		return driver.BootSpec{}, err
@@ -53,10 +53,10 @@ func resolveBootSpec(name string, n topology.Node, kernelImage, rootfs, rootfsRW
 	}, nil
 }
 
-// checkCaps rejects a node/driver mismatch before anything boots: a node that
+// CheckCaps rejects a node/driver mismatch before anything boots: a node that
 // needs a custom kernel must not route to a driver that cannot boot one, and the
 // driver must support the node's arch.
-func checkCaps(driverName string, n topology.Node, caps driver.Caps) error {
+func CheckCaps(driverName string, n topology.Node, caps driver.Caps) error {
 	if n.Kernel != "" && !caps.CustomKernel {
 		return fmt.Errorf("node %q needs a custom kernel but driver %q cannot boot one", n.Kernel, driverName)
 	}

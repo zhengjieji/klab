@@ -38,7 +38,7 @@ func TestParseMem(t *testing.T) {
 
 func TestResolveBootSpec(t *testing.T) {
 	n := topology.Node{Driver: "qemu", Kernel: "bpf-arm64", Arch: "arm64", CPU: 2, Mem: "1G"}
-	got, err := resolveBootSpec("dev", n, "/cache/img/Image", "/run/rootfs", "/run/rw")
+	got, err := ResolveBootSpec("dev", n, "/cache/img/Image", "/run/rootfs", "/run/rw")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,10 +47,10 @@ func TestResolveBootSpec(t *testing.T) {
 		Arch: "arm64", CPU: 2, MemMiB: 1024,
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("resolveBootSpec = %+v, want %+v", got, want)
+		t.Errorf("ResolveBootSpec = %+v, want %+v", got, want)
 	}
-	if _, err := resolveBootSpec("dev", topology.Node{Mem: "bad"}, "", "", ""); err == nil {
-		t.Error("resolveBootSpec should propagate a bad memory size")
+	if _, err := ResolveBootSpec("dev", topology.Node{Mem: "bad"}, "", "", ""); err == nil {
+		t.Error("ResolveBootSpec should propagate a bad memory size")
 	}
 }
 
@@ -58,13 +58,13 @@ func TestCheckCaps(t *testing.T) {
 	qemuCaps := driver.Caps{CustomKernel: true, NeedsKVM: true, Arches: []string{"arm64"}}
 	containerCaps := driver.Caps{CustomKernel: false, Arches: []string{"arm64"}}
 
-	if err := checkCaps("qemu", topology.Node{Kernel: "bpf-arm64", Arch: "arm64"}, qemuCaps); err != nil {
+	if err := CheckCaps("qemu", topology.Node{Kernel: "bpf-arm64", Arch: "arm64"}, qemuCaps); err != nil {
 		t.Errorf("valid node rejected: %v", err)
 	}
-	if err := checkCaps("container", topology.Node{Kernel: "bpf-arm64", Arch: "arm64"}, containerCaps); err == nil {
+	if err := CheckCaps("container", topology.Node{Kernel: "bpf-arm64", Arch: "arm64"}, containerCaps); err == nil {
 		t.Error("custom-kernel node on a no-kernel driver should be rejected")
 	}
-	if err := checkCaps("qemu", topology.Node{Kernel: "k", Arch: "x86_64"}, qemuCaps); err == nil {
+	if err := CheckCaps("qemu", topology.Node{Kernel: "k", Arch: "x86_64"}, qemuCaps); err == nil {
 		t.Error("unsupported arch should be rejected")
 	}
 }
