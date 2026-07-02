@@ -128,3 +128,8 @@ func TestBootArgvLive(t *testing.T) {
 			strings.Join(got, " "), strings.Join(want, " "))
 	}
 }
+
+// TestConformance: the qemu driver honors the shared Driver contract (R2.3).
+func TestConformance(t *testing.T) {
+	driver.Conformance(t, New())
+}
