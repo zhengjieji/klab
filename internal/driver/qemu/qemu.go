@@ -78,11 +78,11 @@ func bootArgv(spec driver.BootSpec, extraCmdline, rwPath string) []string {
 		)
 	}
 	argv = append(argv, "-nographic", "-no-reboot")
-	for i, tap := range spec.Taps {
+	for i, n := range spec.Nics {
 		id := "net" + strconv.Itoa(i)
 		argv = append(argv,
-			"-netdev", "tap,id="+id+",ifname="+tap+",script=no,downscript=no",
-			"-device", "virtio-net-pci,netdev="+id,
+			"-netdev", "tap,id="+id+",ifname="+n.Tap+",script=no,downscript=no",
+			"-device", "virtio-net-pci,netdev="+id+",mac="+n.MAC,
 		)
 	}
 	return argv

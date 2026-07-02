@@ -43,7 +43,15 @@ type BootSpec struct {
 	Arch     string
 	CPU      int
 	MemMiB   int
-	Taps     []string // host tap devices to attach, one per link the node joins
+	Nics     []NIC // one per link the node joins
+}
+
+// NIC is a node's network interface: a host tap device and a unique guest MAC.
+// A unique MAC per node is required — two nodes on one L2 segment sharing a MAC
+// (e.g. qemu's default 52:54:00:12:34:56) cannot communicate.
+type NIC struct {
+	Tap string
+	MAC string
 }
 
 // ExecResult is the outcome of a command run inside a node.

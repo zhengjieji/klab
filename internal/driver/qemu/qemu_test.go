@@ -52,7 +52,8 @@ func TestArgvGolden(t *testing.T) {
 			name: "node on two links",
 			spec: driver.BootSpec{
 				Name: "router", Kernel: "/cache/def456/Image", Rootfs: "/rootfs/router",
-				Arch: "arm64", CPU: 1, MemMiB: 512, Taps: []string{"tap0", "tap1"},
+				Arch: "arm64", CPU: 1, MemMiB: 512,
+				Nics: []driver.NIC{{Tap: "tap0", MAC: "52:54:00:00:00:0a"}, {Tap: "tap1", MAC: "52:54:00:00:00:0b"}},
 			},
 			want: []string{
 				"qemu-system-aarch64",
@@ -68,9 +69,9 @@ func TestArgvGolden(t *testing.T) {
 				"-nographic",
 				"-no-reboot",
 				"-netdev", "tap,id=net0,ifname=tap0,script=no,downscript=no",
-				"-device", "virtio-net-pci,netdev=net0",
+				"-device", "virtio-net-pci,netdev=net0,mac=52:54:00:00:00:0a",
 				"-netdev", "tap,id=net1,ifname=tap1,script=no,downscript=no",
-				"-device", "virtio-net-pci,netdev=net1",
+				"-device", "virtio-net-pci,netdev=net1,mac=52:54:00:00:00:0b",
 			},
 		},
 	}
