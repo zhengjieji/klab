@@ -91,6 +91,7 @@ func (t *Topology) Validate() error {
 // becomes count instances named "<node>-<i>"; each gets a stable MAC.
 type Instance struct {
 	Name string
+	Base string // the topology node key this instance came from (for link resolution)
 	Node Node   // the node spec, with Count reset to 0
 	MAC  string // unique, in the QEMU locally-administered OUI (52:54:00:…)
 }
@@ -108,20 +109,20 @@ func (t *Topology) Expand() []Instance {
 
 	var out []Instance
 	seq := 0
-	add := func(name string, n Node) {
+	add := func(instName, base string, n Node) {
 		seq++
 		n.Count = 0
-		out = append(out, Instance{Name: name, Node: n, MAC: mac(seq)})
+		out = append(out, Instance{Name: instName, Base: base, Node: n, MAC: mac(seq)})
 	}
 	for _, name := range names {
 		n := t.Nodes[name]
 		count := n.Count
 		if count < 1 {
-			add(name, n)
+			add(name, name, n)
 			continue
 		}
 		for i := 0; i < count; i++ {
-			add(fmt.Sprintf("%s-%d", name, i), n)
+			add(fmt.Sprintf("%s-%d", name, i), name, n)
 		}
 	}
 	return out
