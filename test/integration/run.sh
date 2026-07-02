@@ -23,6 +23,7 @@ kx() { "$BIN" exec "$TOPO" dev -- "$@"; }
 # wrapping shell whose arguments mention qemu. pgrep excludes its own process.
 qemu_count() { limactl shell "$INSTANCE" -- pgrep -c qemu-system 2>/dev/null || true; }
 tap_count() { limactl shell "$INSTANCE" -- sh -c 'ip -o link show type tun 2>/dev/null | wc -l' | tr -d ' '; }
+bridge_count() { limactl shell "$INSTANCE" -- sh -c 'ip -o link show type bridge 2>/dev/null | grep -c klbr-' | tr -d ' '; }
 
 command -v limactl >/dev/null || fail "limactl not found — run scripts/setup.sh"
 limactl shell "$INSTANCE" -- test -e /dev/kvm || fail "/dev/kvm not in the '$INSTANCE' Lima host — run klab doctor"
@@ -58,4 +59,35 @@ sleep 1
 [ "$(tap_count)" -eq 0 ] || fail "F1.7: stray tap device after down"
 pass "F1.7 clean teardown (no qemu, no taps)"
 
-echo "[OK] Stage 1 live gate passed (F1.5 / F1.6 / F1.7)"
+# ---- Stage 2: multi-node topologies ----
+
+DUAL=examples/topologies/dual.yaml
+echo "== F2.1/F2.5: dual node ping + status =="
+trap '"$BIN" down "$DUAL" >/dev/null 2>&1' EXIT
+"$BIN" up "$DUAL" >/dev/null || fail "klab up dual failed"
+"$BIN" status "$DUAL" | grep -q "vm1.*ready" || fail "F2.5: status does not report vm1 ready"
+"$BIN" exec "$DUAL" vm1 -- busybox ping -c 2 -W 2 192.168.100.2 | grep -q "0% packet loss" ||
+	fail "F2.1: vm1 cannot ping vm2 over the link subnet"
+"$BIN" down "$DUAL" >/dev/null || fail "klab down dual failed"
+trap - EXIT
+pass "F2.1 dual vm1->vm2 ping; F2.5 status ready"
+
+TRIO=examples/topologies/trio.yaml
+echo "== F2.3/R2.4: 3-node all-pairs ping + clean teardown =="
+trap '"$BIN" down "$TRIO" >/dev/null 2>&1' EXIT
+"$BIN" up "$TRIO" >/dev/null || fail "klab up trio failed"
+for src in node-0 node-1 node-2; do
+	for i in 1 2 3; do
+		"$BIN" exec "$TRIO" "$src" -- busybox ping -c 1 -W 2 "192.168.100.$i" | grep -q "0% packet loss" ||
+			fail "F2.3: $src cannot reach 192.168.100.$i"
+	done
+done
+"$BIN" down "$TRIO" >/dev/null || fail "klab down trio failed"
+trap - EXIT
+sleep 1
+[ "$(qemu_count)" -eq 0 ] || fail "R2.4: stray qemu after down"
+[ "$(tap_count)" -eq 0 ] || fail "R2.4: stray tap after down"
+[ "$(bridge_count)" -eq 0 ] || fail "R2.4: stray bridge after down"
+pass "F2.3 3-node all-pairs ping; R2.4 clean N-node teardown (no qemu/taps/bridges)"
+
+echo "[OK] Stage 1+2 live gate passed (F1.5-F1.7, F2.1/F2.3/F2.5, R2.4)"
