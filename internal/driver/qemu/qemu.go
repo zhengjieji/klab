@@ -7,15 +7,18 @@
 package qemu
 
 import (
-	"context"
-	"errors"
 	"strconv"
 
 	"github.com/zhengjieji/klab/internal/driver"
+	kexec "github.com/zhengjieji/klab/internal/exec"
 )
 
-// Driver boots nodes via qemu-system-aarch64.
-type Driver struct{}
+// Driver boots nodes via qemu-system-aarch64. Runner is the seam into the lima
+// VM (where qemu and /dev/kvm live); a nil Runner defaults to a LimaRunner on
+// the "klab" instance.
+type Driver struct {
+	Runner kexec.Runner
+}
 
 // New returns a qemu driver.
 func New() *Driver { return &Driver{} }
@@ -85,22 +88,6 @@ func bootArgv(spec driver.BootSpec, extraCmdline, rwPath string) []string {
 	return argv
 }
 
-// errNotImplemented marks the live boot path, which lands in the Stage 1 boot
-// slice (F1.5–F1.7). Argv above is the tested Stage 1 deliverable (R1.4).
-var errNotImplemented = errors.New("qemu: live boot not implemented yet (Stage 1 boot slice)")
-
-// Boot is not implemented yet; see errNotImplemented.
-func (Driver) Boot(context.Context, driver.BootSpec) (driver.Handle, error) {
-	return "", errNotImplemented
-}
-
-// Exec is not implemented yet; see errNotImplemented.
-func (Driver) Exec(context.Context, driver.Handle, []string) (driver.ExecResult, error) {
-	return driver.ExecResult{}, errNotImplemented
-}
-
-// Stop is not implemented yet; see errNotImplemented.
-func (Driver) Stop(context.Context, driver.Handle) error { return errNotImplemented }
-
-// Compile-time check that the qemu driver satisfies the Driver interface.
+// Compile-time check that the qemu driver satisfies the Driver interface
+// (Boot/Exec/Stop are implemented in live.go).
 var _ driver.Driver = (*Driver)(nil)

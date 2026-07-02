@@ -9,9 +9,15 @@ import (
 
 func TestEncodeRequest(t *testing.T) {
 	got := string(encodeRequest([]string{"bpftool", "prog", "list"}))
-	want := "bpftool\x00prog\x00list"
+	want := "'bpftool' 'prog' 'list'"
 	if got != want {
 		t.Errorf("encodeRequest = %q, want %q", got, want)
+	}
+	// A single-quote in an arg is escaped so the word stays intact.
+	got = string(encodeRequest([]string{"sh", "-c", "echo 'hi'"}))
+	want = `'sh' '-c' 'echo '\''hi'\'''`
+	if got != want {
+		t.Errorf("encodeRequest(quote) = %q, want %q", got, want)
 	}
 }
 

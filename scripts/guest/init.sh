@@ -43,13 +43,7 @@ while :; do
 		continue
 	fi
 	seq=$(basename "$req" .req)
-	cmd=$(tr '\0' ' ' < "$req")
-	case "$cmd" in
-	"poweroff -f"*)
-		rm -f "$req"
-		poweroff -f
-		;;
-	esac
+	cmd=$(cat "$req")
 	out=$(sh -c "$cmd" 2>&1) && rc=0 || rc=$?
 	{ printf 'rc=%s\n' "$rc"; printf '%s' "$out"; } > "/klab/ctl/$seq.res.tmp"
 	mv "/klab/ctl/$seq.res.tmp" "/klab/ctl/$seq.res"

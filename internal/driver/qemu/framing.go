@@ -14,10 +14,17 @@ import (
 // protocol and for the boot-readiness console line; live.go's Exec/Boot compose
 // them, and they are table-tested here on hosted CI.
 
-// encodeRequest serializes a command as the request-file body: argv joined by
-// NUL so the in-guest init can split it unambiguously.
+// encodeRequest serializes a command as the request-file body: each argv element
+// is shell-quoted and space-joined into one command line, which the in-guest init
+// runs with `sh -c`. Quoting keeps each element a single, literal word (so
+// `klab exec … -- grep 'a b'` works) while still letting an explicit
+// `sh -c '<script>'` use shell features.
 func encodeRequest(argv []string) []byte {
-	return []byte(strings.Join(argv, "\x00"))
+	q := make([]string, len(argv))
+	for i, a := range argv {
+		q[i] = shQuote(a)
+	}
+	return []byte(strings.Join(q, " "))
 }
 
 // parseResponse parses a response-file body of the form "rc=<n>\n<output>" into
