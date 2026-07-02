@@ -68,9 +68,24 @@ trap '"$BIN" down "$DUAL" >/dev/null 2>&1' EXIT
 "$BIN" status "$DUAL" | grep -q "vm1.*ready" || fail "F2.5: status does not report vm1 ready"
 "$BIN" exec "$DUAL" vm1 -- busybox ping -c 2 -W 2 192.168.100.2 | grep -q "0% packet loss" ||
 	fail "F2.1: vm1 cannot ping vm2 over the link subnet"
+pass "F2.1 dual vm1->vm2 ping; F2.5 status ready"
+
+echo "== F2.2: XDP smoke (vm2's traffic hits an XDP prog on vm1) =="
+"$BIN" exec "$DUAL" vm1 -- sh -c 'ip link set dev eth0 xdpgeneric obj /usr/lib/klab/xdp_drop.o sec xdp' ||
+	fail "F2.2: XDP attach on vm1 eth0 failed"
+"$BIN" exec "$DUAL" vm1 -- sh -c 'ip link show eth0 | grep -q xdpgeneric' ||
+	fail "F2.2: XDP prog not attached on vm1 eth0"
+# With XDP_DROP attached, vm2's traffic must not get through cleanly (expect loss).
+if "$BIN" exec "$DUAL" vm2 -- busybox ping -c 3 -W 2 192.168.100.1 | grep -q "0% packet loss"; then
+	fail "F2.2: XDP_DROP on vm1 did not affect vm2's traffic (0% loss with prog attached)"
+fi
+"$BIN" exec "$DUAL" vm1 -- sh -c 'ip link set dev eth0 xdpgeneric off' || fail "F2.2: XDP detach failed"
+"$BIN" exec "$DUAL" vm2 -- busybox ping -c 3 -W 2 192.168.100.1 | grep -q "0% packet loss" ||
+	fail "F2.2: connectivity not restored after detach"
+pass "F2.2 XDP on vm1 eth0 sees vm2 traffic (attach->loss; detach->restored)"
+
 "$BIN" down "$DUAL" >/dev/null || fail "klab down dual failed"
 trap - EXIT
-pass "F2.1 dual vm1->vm2 ping; F2.5 status ready"
 
 TRIO=examples/topologies/trio.yaml
 echo "== F2.3/R2.4: 3-node all-pairs ping + clean teardown =="

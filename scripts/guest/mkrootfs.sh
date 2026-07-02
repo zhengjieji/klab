@@ -43,11 +43,13 @@ log "debootstrap minbase (arm64, $SUITE) -> $BASE"
 sudo debootstrap --arch=arm64 --variant=minbase \
 	--include=iproute2,busybox-static "$SUITE" "$BASE" "$MIRROR"
 
-log "installing bpftool, klab init, and the precompiled XDP program"
+log "installing bpftool, klab init, and the precompiled XDP programs"
 sudo install -D -m0755 "$tree/tools/bpf/bpftool/bpftool" "$BASE/usr/sbin/bpftool"
 sudo install -D -m0755 "$GUEST_DIR/init.sh" "$BASE/sbin/klab-init"
-clang -O2 -g -target bpf -I"/usr/include/$MULTIARCH" -c "$GUEST_DIR/xdp_pass.c" -o /tmp/klab_xdp_pass.o
-sudo install -D -m0644 /tmp/klab_xdp_pass.o "$BASE/usr/lib/klab/xdp_pass.o"
-rm -f /tmp/klab_xdp_pass.o
+for c in "$GUEST_DIR"/xdp_*.c; do
+	clang -O2 -g -target bpf -I"/usr/include/$MULTIARCH" -c "$c" -o /tmp/klab_xdp.o
+	sudo install -D -m0644 /tmp/klab_xdp.o "$BASE/usr/lib/klab/$(basename "$c" .c).o"
+done
+rm -f /tmp/klab_xdp.o
 
 log "done: $BASE"
