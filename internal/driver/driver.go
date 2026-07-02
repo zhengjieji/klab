@@ -36,13 +36,14 @@ type Handle string
 
 // BootSpec is the resolved, driver-agnostic description of one node to boot.
 type BootSpec struct {
-	Name   string
-	Kernel string // path to a built kernel image (Stage 1 artifact)
-	Rootfs string // path to the node's rootfs, exported to the guest over 9p
-	Arch   string
-	CPU    int
-	MemMiB int
-	Taps   []string // host tap devices to attach, one per link the node joins
+	Name     string
+	Kernel   string // path to a built kernel image (Stage 1 artifact)
+	Rootfs   string // path to the node's rootfs, exported to the guest over 9p
+	RootfsRW string // control/scratch dir; exported as a 2nd 9p device (empty = none)
+	Arch     string
+	CPU      int
+	MemMiB   int
+	Taps     []string // host tap devices to attach, one per link the node joins
 }
 
 // ExecResult is the outcome of a command run inside a node.

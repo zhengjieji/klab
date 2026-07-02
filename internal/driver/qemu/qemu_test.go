@@ -97,3 +97,34 @@ func TestArgvDefaults(t *testing.T) {
 		}
 	}
 }
+
+// TestBootArgvLive pins the live boot command line: the extra `init=` cmdline
+// and the second 9p control device are appended in a stable order, and the base
+// flags are unchanged from the pure Argv.
+func TestBootArgvLive(t *testing.T) {
+	spec := driver.BootSpec{
+		Name: "dev", Kernel: "/cache/abc123/Image", Rootfs: "/rootfs/dev",
+		Arch: "arm64", CPU: 2, MemMiB: 1024,
+	}
+	got := bootArgv(spec, "init=/sbin/klab-init", "/run/single/dev/rw")
+	want := []string{
+		"qemu-system-aarch64",
+		"-machine", "virt,gic-version=max",
+		"-accel", "kvm",
+		"-cpu", "host",
+		"-smp", "2",
+		"-m", "1024",
+		"-kernel", "/cache/abc123/Image",
+		"-append", "console=ttyAMA0 root=rootfs rootfstype=9p rootflags=trans=virtio,version=9p2000.L rw init=/sbin/klab-init",
+		"-fsdev", "local,id=rootdev,path=/rootfs/dev,security_model=none",
+		"-device", "virtio-9p-pci,fsdev=rootdev,mount_tag=rootfs",
+		"-fsdev", "local,id=klabrw,path=/run/single/dev/rw,security_model=none",
+		"-device", "virtio-9p-pci,fsdev=klabrw,mount_tag=klabrw",
+		"-nographic",
+		"-no-reboot",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("live argv mismatch:\n got: %s\nwant: %s",
+			strings.Join(got, " "), strings.Join(want, " "))
+	}
+}

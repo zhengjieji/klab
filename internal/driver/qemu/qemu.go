@@ -29,11 +29,19 @@ func (Driver) Capabilities() driver.Caps {
 	return driver.Caps{CustomKernel: true, NeedsKVM: true, Arches: []string{"arm64"}}
 }
 
-// Argv builds the qemu-system-aarch64 command line for one node: direct
-// `-kernel` boot, KVM acceleration, a 9p-exported rootfs, a serial console, and
-// one virtio-net tap per link the node joins. It is pure and deterministic
-// (stable flag order) so R1.4 can snapshot it as golden data.
+// Argv builds the pure boot command line for one node: direct `-kernel` boot,
+// KVM acceleration, a 9p-exported rootfs, a serial console, and one virtio-net
+// tap per link. Deterministic (stable flag order) so R1.4 can snapshot it.
 func (Driver) Argv(spec driver.BootSpec) []string {
+	return bootArgv(spec, "", "")
+}
+
+// bootArgv is Argv's implementation, parameterized for the live boot path.
+// extraCmdline is appended to `-append` (e.g. "init=/sbin/klab-init"); when
+// rwPath is non-empty a second 9p device (mount_tag=klabrw) exports it as the
+// node's control/scratch channel. Both the plain Argv and the live boot line are
+// golden-snapshot-tested, so this stays pure and its flag order stable.
+func bootArgv(spec driver.BootSpec, extraCmdline, rwPath string) []string {
 	cpu := spec.CPU
 	if cpu < 1 {
 		cpu = 1
@@ -44,6 +52,9 @@ func (Driver) Argv(spec driver.BootSpec) []string {
 	}
 	cmdline := "console=ttyAMA0 root=rootfs rootfstype=9p " +
 		"rootflags=trans=virtio,version=9p2000.L rw"
+	if extraCmdline != "" {
+		cmdline += " " + extraCmdline
+	}
 
 	argv := []string{
 		"qemu-system-aarch64",
@@ -56,9 +67,14 @@ func (Driver) Argv(spec driver.BootSpec) []string {
 		"-append", cmdline,
 		"-fsdev", "local,id=rootdev,path=" + spec.Rootfs + ",security_model=none",
 		"-device", "virtio-9p-pci,fsdev=rootdev,mount_tag=rootfs",
-		"-nographic",
-		"-no-reboot",
 	}
+	if rwPath != "" {
+		argv = append(argv,
+			"-fsdev", "local,id=klabrw,path="+rwPath+",security_model=none",
+			"-device", "virtio-9p-pci,fsdev=klabrw,mount_tag=klabrw",
+		)
+	}
+	argv = append(argv, "-nographic", "-no-reboot")
 	for i, tap := range spec.Taps {
 		id := "net" + strconv.Itoa(i)
 		argv = append(argv,
