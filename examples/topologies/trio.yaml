@@ -1,0 +1,14 @@
+name: trio
+nodes:
+  node:
+    driver: qemu
+    kernel: bpf-arm64
+    arch: arm64
+    cpu: 1
+    mem: 512M
+    profile: bpf-min
+    count: 3
+links:
+  - name: data0
+    members: [node]
+    subnet: 192.168.100.0/24

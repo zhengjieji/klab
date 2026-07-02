@@ -53,7 +53,9 @@ func main() {
 		downCmd(os.Args[2:])
 	case "exec":
 		execCmd(os.Args[2:])
-	case "status", "ssh":
+	case "status":
+		statusCmd(os.Args[2:])
+	case "ssh":
 		notImplemented(cmd, "stage 2")
 	case "run":
 		notImplemented(cmd, "stage 3")
@@ -207,17 +209,6 @@ func resolveKernelImage(name string) (string, error) {
 	return a.Image, nil
 }
 
-// onlyNode returns the single node of a Stage-1 topology (N-node is Stage 2).
-func onlyNode(t *topology.Topology) (string, topology.Node, error) {
-	if len(t.Nodes) != 1 {
-		return "", topology.Node{}, fmt.Errorf("stage 1 supports single-node topologies; %q has %d nodes", t.Name, len(t.Nodes))
-	}
-	for name, n := range t.Nodes {
-		return name, n, nil
-	}
-	return "", topology.Node{}, fmt.Errorf("topology has no nodes")
-}
-
 // vmHome reports the run user's home inside the lima VM (paths are built from it).
 func vmHome(ctx context.Context, r kexec.Runner) (string, error) {
 	res, err := r.Run(ctx, "sh", "-c", "echo $HOME")
@@ -236,6 +227,22 @@ func die(err error) {
 	os.Exit(1)
 }
 
+// newCluster builds a Cluster bound to the lima host (any node count).
+func newCluster(ctx context.Context) (*runner.Cluster, error) {
+	r := kexec.LimaRunner{}
+	home, err := vmHome(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	return &runner.Cluster{
+		Runner: r,
+		Driver: qemu.Driver{Runner: r},
+		Home:   home,
+		Base:   path.Join(home, ".cache/klab/rootfs/base/bpf-min"),
+		Image:  resolveKernelImage,
+	}, nil
+}
+
 func upCmd(args []string) {
 	if len(args) != 1 {
 		fmt.Fprintln(os.Stderr, "usage: klab up <topology>")
@@ -245,46 +252,23 @@ func upCmd(args []string) {
 	if err != nil {
 		die(err)
 	}
-	name, node, err := onlyNode(topo)
-	if err != nil {
-		die(err)
-	}
-	image, err := resolveKernelImage(node.Kernel)
-	if err != nil {
-		die(err)
-	}
-
 	ctx := context.Background()
-	r := kexec.LimaRunner{}
-	home, err := vmHome(ctx, r)
+	cl, err := newCluster(ctx)
 	if err != nil {
 		die(err)
 	}
-	run := path.Join(home, ".cache/klab/run", name)
-	base := path.Join(home, ".cache/klab/rootfs/base/bpf-min")
-
-	if res, _ := r.Run(ctx, "sudo", "test", "-e", base+"/sbin/klab-init"); res.ExitCode != 0 {
-		die(fmt.Errorf("base rootfs missing at %s; run scripts/guest/mkrootfs.sh in the VM", base))
+	if res, _ := cl.Runner.Run(ctx, "sudo", "test", "-e", cl.Base+"/sbin/klab-init"); res.ExitCode != 0 {
+		die(fmt.Errorf("base rootfs missing at %s; run scripts/guest/mkrootfs.sh in the VM", cl.Base))
 	}
-	prep := fmt.Sprintf("rm -rf %q && mkdir -p %q && cp -a %q %q", run, run+"/rw/ctl", base, run+"/rootfs")
-	if _, err := r.Run(ctx, "sudo", "bash", "-c", prep); err != nil {
-		die(fmt.Errorf("preparing node rootfs: %w", err))
-	}
-
-	spec, err := runner.ResolveBootSpec(name, node, image, run+"/rootfs", run+"/rw")
-	if err != nil {
+	n := len(topo.Expand())
+	fmt.Fprintf(os.Stderr, "klab: bringing up %s (%d node(s))...\n", topo.Name, n)
+	if err := cl.Up(ctx, topo); err != nil {
 		die(err)
 	}
-	d := qemu.Driver{Runner: r}
-	if err := runner.CheckCaps(node.Driver, node, d.Capabilities()); err != nil {
-		die(err)
+	for _, s := range cl.Status(ctx, topo) {
+		fmt.Printf("  %s: %s\n", s.Name, stateOf(s))
 	}
-	fmt.Fprintf(os.Stderr, "klab: booting %s (%s)...\n", name, node.Arch)
-	h, err := d.Boot(ctx, spec)
-	if err != nil {
-		die(err)
-	}
-	fmt.Printf("%s: up (%s)\n  handle: %s\n  exec:   klab exec %s %s -- <cmd>\n", name, node.Arch, h, args[0], name)
+	fmt.Printf("%s: up (%d node(s))\n", topo.Name, n)
 }
 
 func downCmd(args []string) {
@@ -296,22 +280,45 @@ func downCmd(args []string) {
 	if err != nil {
 		die(err)
 	}
-	name, _, err := onlyNode(topo)
+	ctx := context.Background()
+	cl, err := newCluster(ctx)
+	if err != nil {
+		die(err)
+	}
+	if err := cl.Down(ctx, topo); err != nil {
+		die(err)
+	}
+	fmt.Printf("%s: down\n", topo.Name)
+}
+
+func statusCmd(args []string) {
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: klab status <topology>")
+		os.Exit(2)
+	}
+	topo, err := topology.Load(args[0])
 	if err != nil {
 		die(err)
 	}
 	ctx := context.Background()
-	r := kexec.LimaRunner{}
-	home, err := vmHome(ctx, r)
+	cl, err := newCluster(ctx)
 	if err != nil {
 		die(err)
 	}
-	run := path.Join(home, ".cache/klab/run", name)
-	d := qemu.Driver{Runner: r}
-	if err := d.Stop(ctx, driver.Handle(run)); err != nil {
-		die(err)
+	for _, s := range cl.Status(ctx, topo) {
+		fmt.Printf("%-18s %s\n", s.Name, stateOf(s))
 	}
-	fmt.Printf("%s: down\n", name)
+}
+
+func stateOf(s runner.NodeStatus) string {
+	switch {
+	case s.Reachable:
+		return "ready"
+	case s.Running:
+		return "running"
+	default:
+		return "down"
+	}
 }
 
 // execCmd runs a command inside a running node: klab exec <topology> <node> -- <cmd...>
@@ -332,7 +339,16 @@ func execCmd(args []string) {
 	if err != nil {
 		die(err)
 	}
-	if _, ok := topo.Nodes[nodeName]; !ok {
+	// Node names are the count-expanded instance names (e.g. "node-0"), not the
+	// pre-expansion keys in topo.Nodes.
+	known := false
+	for _, in := range topo.Expand() {
+		if in.Name == nodeName {
+			known = true
+			break
+		}
+	}
+	if !known {
 		die(fmt.Errorf("no node %q in topology %q", nodeName, topo.Name))
 	}
 	ctx := context.Background()
