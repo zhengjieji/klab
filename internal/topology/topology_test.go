@@ -1,6 +1,10 @@
 package topology
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestValidate(t *testing.T) {
 	q := func() Node { return Node{Driver: "qemu"} }
@@ -39,5 +43,40 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("Validate() error = %v, wantErr = %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestLoadExamples: every shipped example topology parses and validates.
+func TestLoadExamples(t *testing.T) {
+	matches, err := filepath.Glob(filepath.Join("..", "..", "examples", "topologies", "*.yaml"))
+	if err != nil || len(matches) == 0 {
+		t.Fatalf("no example topologies found: %v", err)
+	}
+	for _, m := range matches {
+		if _, err := Load(m); err != nil {
+			t.Errorf("Load(%s) failed: %v", filepath.Base(m), err)
+		}
+	}
+}
+
+func TestLoadErrors(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	cases := map[string]string{
+		"missing file":         filepath.Join(dir, "does-not-exist.yaml"),
+		"malformed yaml":       write("bad.yaml", "name: x\nnodes: [oops\n"),
+		"missing name":         write("noname.yaml", "nodes:\n  a:\n    driver: qemu\n"),
+		"link to unknown node": write("ghost.yaml", "name: x\nnodes:\n  a:\n    driver: qemu\nlinks:\n  - name: l\n    members: [ghost]\n"),
+	}
+	for name, path := range cases {
+		if _, err := Load(path); err == nil {
+			t.Errorf("Load(%s): expected an error, got nil", name)
+		}
 	}
 }

@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Topology is the top-level declarative spec. See examples/topologies/*.yaml.
@@ -72,15 +74,24 @@ func (t *Topology) Validate() error {
 	return nil
 }
 
-// ValidateFile parses and validates a topology file.
-//
-// NOTE: YAML unmarshalling is a Stage-2 deliverable. For now this validates the
-// file exists so the CLI and CI have a working end-to-end path; the structural
-// Validate above is already fully unit-tested.
-func ValidateFile(path string) error {
-	if _, err := os.Stat(path); err != nil {
-		return err
+// Load reads a topology YAML file, unmarshals it, and validates it.
+func Load(path string) (*Topology, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
-	// TODO(stage-2): unmarshal YAML into Topology and call (*Topology).Validate().
-	return nil
+	var t Topology
+	if err := yaml.Unmarshal(data, &t); err != nil {
+		return nil, fmt.Errorf("topology %s: %w", path, err)
+	}
+	if err := t.Validate(); err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// ValidateFile parses and validates a topology file.
+func ValidateFile(path string) error {
+	_, err := Load(path)
+	return err
 }
