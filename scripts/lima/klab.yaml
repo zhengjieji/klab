@@ -52,7 +52,7 @@ provision:
       apt-get update
       apt-get install -y \
         qemu-system-arm qemu-utils \
-        iproute2 bridge-utils \
+        iproute2 bridge-utils debootstrap \
         build-essential flex bison bc \
         libelf-dev libssl-dev \
         clang lld llvm dwarves \
