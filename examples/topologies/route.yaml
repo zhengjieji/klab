@@ -1,0 +1,30 @@
+name: route
+nodes:
+  left:
+    driver: qemu
+    kernel: bpf-arm64
+    arch: arm64
+    cpu: 1
+    mem: 512M
+    profile: bpf-min
+  router:
+    driver: qemu
+    kernel: bpf-arm64
+    arch: arm64
+    cpu: 1
+    mem: 512M
+    profile: bpf-min
+  right:
+    driver: qemu
+    kernel: bpf-arm64
+    arch: arm64
+    cpu: 1
+    mem: 512M
+    profile: bpf-min
+links:
+  - name: neta
+    members: [left, router]
+    subnet: 192.168.10.0/24
+  - name: netb
+    members: [router, right]
+    subnet: 192.168.20.0/24

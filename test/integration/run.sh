@@ -105,4 +105,17 @@ sleep 1
 [ "$(bridge_count)" -eq 0 ] || fail "R2.4: stray bridge after down"
 pass "F2.3 3-node all-pairs ping; R2.4 clean N-node teardown (no qemu/taps/bridges)"
 
-echo "[OK] Stage 1+2 live gate passed (F1.5-F1.7, F2.1/F2.3/F2.5, R2.4)"
+ROUTE=examples/topologies/route.yaml
+echo "== F2.4: routing between two subnets via a router node =="
+trap '"$BIN" down "$ROUTE" >/dev/null 2>&1' EXIT
+"$BIN" up "$ROUTE" >/dev/null || fail "klab up route failed"
+"$BIN" exec "$ROUTE" router -- sh -c 'echo 1 > /proc/sys/net/ipv4/ip_forward' || fail "F2.4: enabling ip_forward failed"
+"$BIN" exec "$ROUTE" left -- ip route add 192.168.20.0/24 via 192.168.10.2 || fail "F2.4: left route failed"
+"$BIN" exec "$ROUTE" right -- ip route add 192.168.10.0/24 via 192.168.20.1 || fail "F2.4: right route failed"
+"$BIN" exec "$ROUTE" left -- busybox ping -c 2 -W 2 192.168.20.2 | grep -q "0% packet loss" ||
+	fail "F2.4: left cannot reach right across the router"
+"$BIN" down "$ROUTE" >/dev/null || fail "klab down route failed"
+trap - EXIT
+pass "F2.4 routing across two subnets (left <-> right via router node)"
+
+echo "[OK] Stage 1+2 live gate passed (F1.5-F1.7, F2.1-F2.5, R2.4)"
